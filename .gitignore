@@ -1,2 +1,4 @@
 chrome_user_data/
 youtube_cookies.json
+build/
+dist/

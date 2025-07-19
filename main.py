@@ -4,11 +4,11 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 import random
 import json
 import os
-from pathlib import Path
 
 # Cookie保存文件路径
 COOKIE_FILE = "youtube_cookies.json"
@@ -231,9 +231,11 @@ def open_youtube_with_login():
     try:
         print("🚀 正在启动Chrome浏览器...")
         print("⏳ 请稍等，浏览器正在初始化...")
+        print("📦 正在自动下载/更新ChromeDriver...")
         
-        # 创建WebDriver实例
-        driver = webdriver.Chrome(options=chrome_options)
+        # 创建WebDriver实例，使用webdriver-manager自动管理ChromeDriver
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         
         # 执行修复后的反检测脚本
         stealth_js = """
