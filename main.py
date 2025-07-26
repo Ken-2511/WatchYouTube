@@ -65,12 +65,13 @@ def check_login_status(driver):
     try:
         # 查找登录状态标识
         driver.get("https://www.youtube.com")
-        time.sleep(3)
         
-        # 检查是否有用户头像或登录按钮
+        # 使用WebDriverWait等待页面加载并检查登录状态
+        wait = WebDriverWait(driver, 10)
+        
         try:
-            # 查找用户头像按钮
-            avatar = driver.find_element(By.CSS_SELECTOR, "#avatar-btn")
+            # 等待并查找用户头像按钮
+            avatar = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#avatar-btn")))
             print("✅ 检测到已登录状态")
             return True
         except:
@@ -180,6 +181,7 @@ def setup_chrome_options():
     chrome_options.add_experimental_option("prefs", prefs)
     
     return chrome_options
+
 def execute_stealth_script(driver):
     """
     执行简化的反检测脚本
@@ -244,7 +246,7 @@ def open_youtube_with_login():
         
         # 执行反检测脚本
         execute_stealth_script(driver)
-        driver.set_window_size(1920, 1080)
+        driver.maximize_window()
         
         print("✅ Chrome浏览器已启动完成！")
         print("=" * 50)
@@ -258,7 +260,6 @@ def open_youtube_with_login():
         print("⏳ 请稍等，正在加载视频页面...")
         
         driver.get(DEFAULT_VIDEO_URL)
-        time.sleep(5)
         
         # 尝试点击播放按钮
         try:
@@ -277,14 +278,29 @@ def open_youtube_with_login():
         else:
             print("🌐 访客模式：可正常观看视频")
         
-        print("\n💡 使用提示:")
-        print("- 您可以在浏览器中正常使用所有YouTube功能")
-        print("- 如果登录了，状态将自动保存到下次使用")
-        print("- 观看完毕后，回到此窗口按Enter键关闭")
+        print("\n💡 视频播放监控:")
+        print("- 程序将自动监控视频播放状态")
+        print("- 视频播放完毕后会自动关闭浏览器")
+        print("- 您也可以手动按Ctrl+C强制退出")
         print("=" * 50)
-        print("⏸️ 按Enter键关闭浏览器...")
+        print("🔍 正在监控视频播放状态...")
         
-        input()  # 等待用户输入
+        # 持续监控当前URL
+        original_url = DEFAULT_VIDEO_URL
+        try:
+            while True:
+                time.sleep(5)  # 每5秒检查一次
+                current_url = driver.current_url
+                
+                # 检查是否还在原视频页面
+                if original_url not in current_url:
+                    print(f"\n🎬 检测到页面跳转: {current_url}")
+                    print("✅ 视频播放完毕，正在自动关闭浏览器...")
+                    break
+        except KeyboardInterrupt:
+            print("\n⚠️ 用户手动中断，正在关闭浏览器...")
+        except Exception as e:
+            print(f"\n❌ 监控过程中发生错误: {e}")
         
     except Exception as e:
         print(f"\n❌ 发生错误: {e}")
