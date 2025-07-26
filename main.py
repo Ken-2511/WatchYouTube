@@ -6,12 +6,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 import time
-import random
 import json
 import os
+import shutil
+import webbrowser
 
-# Cookie保存文件路径
+# 配置常量
 COOKIE_FILE = "youtube_cookies.json"
+DEFAULT_VIDEO_URL = "https://youtu.be/_wqlHmhCqug?si=IhySzXenMXA2IR_0"
 
 def save_cookies(driver):
     """
@@ -142,201 +144,120 @@ def youtube_login(driver):
         print("3. 或者选择跳过登录，以访客模式观看视频")
         return False
 
-def open_youtube_with_login():
+def setup_chrome_options():
     """
-    打开YouTube并支持登录功能
+    设置Chrome选项，简化配置
     """
-    # 设置Chrome选项，添加反检测措施
     chrome_options = Options()
     
     # 基本设置
     chrome_options.add_argument("--start-maximized")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    
-    # 反检测设置
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-
-    # 增强反检测措施
-    chrome_options.add_argument("--disable-web-security")
-    chrome_options.add_argument("--allow-running-insecure-content")
-    chrome_options.add_argument("--disable-extensions-file-access-check")
-    chrome_options.add_argument("--disable-extensions-http-throttling")
-    chrome_options.add_argument("--disable-permissions-api")
-    chrome_options.add_argument("--disable-plugins-discovery")
-    chrome_options.add_argument("--disable-default-apps")
-    chrome_options.add_argument("--disable-sync")
-
-    # 模拟真实浏览器环境
-    chrome_options.add_argument("--enable-automation")  # 反向操作，有时能绕过检测
-    chrome_options.add_argument("--no-first-run")
-    chrome_options.add_argument("--no-default-browser-check")
-    chrome_options.add_argument("--disable-background-networking")
-
-    # 设置更真实的窗口大小和位置
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--window-position=0,0")
     
-    # 设置用户数据目录，保持浏览器状态
+    # 设置用户数据目录
     user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
     chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
     
-    # 减少Chrome启动时的日志输出
-    chrome_options.add_argument("--log-level=3")  # 只显示致命错误
+    # 减少日志输出
+    chrome_options.add_argument("--log-level=3")
     chrome_options.add_argument("--disable-logging")
-    chrome_options.add_argument("--disable-dev-tools")
-
-    # 添加更多日志抑制参数，减少ML和媒体相关警告
-    chrome_options.add_argument("--disable-gpu-logging")
-    chrome_options.add_argument("--disable-software-rasterizer")
-    chrome_options.add_argument("--disable-background-timer-throttling")
-    chrome_options.add_argument("--disable-renderer-backgrounding")
-    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
-    chrome_options.add_argument("--disable-ipc-flooding-protection")
-    chrome_options.add_argument("--disable-features=VizDisplayCompositor,TranslateUI,BlinkGenPropertyTrees")
-
-    # 抑制机器学习和媒体相关功能的日志
-    chrome_options.add_argument("--disable-ml-model-service")
-    chrome_options.add_argument("--disable-component-update")
-    chrome_options.add_argument("--disable-speech-api")
-
-    # 设置环境变量来进一步抑制TensorFlow警告
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # 只显示错误
-    os.environ['GRPC_VERBOSITY'] = 'ERROR'
     
-    # 设置更新的用户代理（使用最新版本）
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
-    ]
-    chrome_options.add_argument(f"--user-agent={random.choice(user_agents)}")
+    # 设置用户代理
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    chrome_options.add_argument(f"--user-agent={user_agent}")
     
-    # 添加更多prefs来模拟真实浏览器
+    # 浏览器偏好设置
     prefs = {
         "profile.default_content_setting_values": {
-            "notifications": 2,  # 阻止通知
-            "plugins": 1,
+            "notifications": 2,
             "popups": 0,
-            "geolocation": 2,
-            "media_stream": 2,
-        },
-        "profile.default_content_settings": {"popups": 0},
-        "profile.managed_default_content_settings": {"images": 1}
+        }
     }
     chrome_options.add_experimental_option("prefs", prefs)
+    
+    return chrome_options
+def execute_stealth_script(driver):
+    """
+    执行简化的反检测脚本
+    """
+    stealth_js = """
+    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+    """
+    driver.execute_script(stealth_js)
+
+def handle_login_flow(driver):
+    """
+    处理登录流程
+    """
+    has_saved_cookies = os.path.exists(COOKIE_FILE)
+    logged_in = False
+    
+    if has_saved_cookies:
+        print("📂 发现已保存的登录信息")
+        use_saved_login = input("🔑 是否使用已保存的登录状态? (y/n): ").lower().strip()
+        
+        if use_saved_login == 'y':
+            print("📂 正在加载已保存的cookies...")
+            if load_cookies(driver):
+                print("🔄 正在验证登录状态...")
+                driver.refresh()
+                time.sleep(3)
+                logged_in = check_login_status(driver)
+                if logged_in:
+                    print("🎉 登录状态验证成功！")
+                else:
+                    print("⚠️ 已保存的登录状态已过期")
+    
+    if not logged_in:
+        print("选择登录方式:")
+        print("1. 登录YouTube账号 (推荐)")
+        print("2. 跳过登录，直接观看视频")
+        login_choice = input("请选择 (1/2): ").strip()
+        
+        if login_choice == '1':
+            logged_in = youtube_login(driver)
+        else:
+            print("🌐 将以访客模式打开视频")
+    
+    return logged_in
+
+def open_youtube_with_login():
+    """
+    打开YouTube并支持登录功能
+    """
+    chrome_options = setup_chrome_options()
     
     try:
         print("🚀 正在启动Chrome浏览器...")
         print("⏳ 请稍等，浏览器正在初始化...")
-        print("📦 正在自动下载/更新ChromeDriver...")
         
-        # 创建WebDriver实例，使用webdriver-manager自动管理ChromeDriver
+        # 创建WebDriver实例
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
-        # 执行修复后的反检测脚本
-        stealth_js = """
-        // 隐藏webdriver属性
-        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-        
-        // 修改userAgent相关属性
-        try {
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-        } catch(e) {}
-        
-        try {
-            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
-        } catch(e) {}
-        
-        // 修改屏幕属性
-        try {
-            Object.defineProperty(screen, 'colorDepth', {get: () => 24});
-            Object.defineProperty(screen, 'pixelDepth', {get: () => 24});
-        } catch(e) {}
-        
-        // 隐藏自动化相关属性
-        try {
-            Object.defineProperty(navigator, 'permissions', {get: () => undefined});
-        } catch(e) {}
-        
-        // 安全地修改chrome属性（只在不存在时创建）
-        try {
-            if (!window.chrome || !window.chrome.runtime) {
-                Object.defineProperty(window, 'chrome', {
-                    value: {runtime: {}},
-                    writable: false,
-                    enumerable: true,
-                    configurable: false
-                });
-            }
-        } catch(e) {
-            // 如果chrome属性已存在且不能修改，则跳过
-        }
-        
-        // 其他反检测措施
-        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-        """
-        driver.execute_script(stealth_js)
-        
-        # 设置窗口大小
+        # 执行反检测脚本
+        execute_stealth_script(driver)
         driver.set_window_size(1920, 1080)
         
         print("✅ Chrome浏览器已启动完成！")
         print("=" * 50)
         
-        # 检查是否有已保存的cookies
-        has_saved_cookies = os.path.exists(COOKIE_FILE)
+        # 处理登录流程
+        logged_in = handle_login_flow(driver)
         
-        logged_in = False
-        
-        if has_saved_cookies:
-            print("📂 发现已保存的登录信息")
-            print("💡 提示：选择'y'可快速使用之前的登录状态")
-            print("=" * 50)
-            use_saved_login = input("🔑 是否使用已保存的登录状态? (y/n): ").lower().strip()
-            
-            if use_saved_login == 'y':
-                print("📂 正在加载已保存的cookies...")
-                if load_cookies(driver):
-                    # 刷新页面以应用cookies
-                    print("🔄 正在验证登录状态...")
-                    driver.refresh()
-                    time.sleep(3)
-                    logged_in = check_login_status(driver)
-                    if logged_in:
-                        print("🎉 登录状态验证成功！")
-                    else:
-                        print("⚠️ 已保存的登录状态已过期")
-        else:
-            print("📝 未发现已保存的登录信息")
-            print("💡 提示：首次使用建议先登录您的YouTube账号")
-            print("=" * 50)
-        
-        if not logged_in:
-            print("选择登录方式:")
-            print("1. 登录YouTube账号 (推荐)")
-            print("2. 跳过登录，直接观看视频")
-            login_choice = input("请选择 (1/2): ").strip()
-            
-            if login_choice == '1':
-                logged_in = youtube_login(driver)
-            else:
-                print("🌐 将以访客模式打开视频")
-        
-        # YouTube视频URL
-        youtube_url = "https://youtu.be/_wqlHmhCqug?si=IhySzXenMXA2IR_0"
-        
+        # 打开YouTube视频
         print(f"\n🎥 正在打开YouTube视频...")
-        print(f"🔗 链接: {youtube_url}")
+        print(f"🔗 链接: {DEFAULT_VIDEO_URL}")
         print("⏳ 请稍等，正在加载视频页面...")
         
-        # 访问目标视频
-        driver.get(youtube_url)
+        driver.get(DEFAULT_VIDEO_URL)
         time.sleep(5)
         
         # 尝试点击播放按钮
@@ -397,7 +318,6 @@ def clear_saved_data():
             print("✅ 已清除保存的cookies")
         
         # 删除Chrome用户数据目录
-        import shutil
         user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
         if os.path.exists(user_data_dir):
             shutil.rmtree(user_data_dir)
@@ -409,13 +329,10 @@ def clear_saved_data():
 
 def open_youtube_alternative():
     """
-    替代方案：使用更简单的方法打开YouTube
+    替代方案：使用默认浏览器打开YouTube
     """
-    import webbrowser
-    
-    youtube_url = "https://youtu.be/_wqlHmhCqug?si=IhySzXenMXA2IR_0"
-    print(f"🌐 使用默认浏览器打开YouTube视频: {youtube_url}")
-    webbrowser.open(youtube_url)
+    print(f"🌐 使用默认浏览器打开YouTube视频: {DEFAULT_VIDEO_URL}")
+    webbrowser.open(DEFAULT_VIDEO_URL)
     print("✅ 视频已在默认浏览器中打开")
 
 def troubleshoot_login_issues():
