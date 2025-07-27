@@ -14,7 +14,6 @@ import random
 
 # 配置常量
 COOKIE_FILE = "youtube_cookies.json"
-DEFAULT_VIDEO_URL = "https://youtu.be/_wqlHmhCqug?si=IhySzXenMXA2IR_0"
 CHANNEL_URL = "https://www.youtube.com/@AltonFrederickpreaching/videos"
 
 def save_cookies(driver):
@@ -123,7 +122,6 @@ def get_channel_videos(driver, channel_url):
 def skip_ad_if_present(driver):
     """检查并跳过广告"""
     try:
-        time.sleep(3)
         skip_button = driver.find_element(By.CSS_SELECTOR, ".ytp-skip-ad-button")
         if skip_button.is_displayed() and skip_button.is_enabled():
             print("📺 发现广告，正在跳过...")
@@ -182,6 +180,9 @@ def wait_for_video_duration(driver, video_url, max_wait_time=None):
                 print(f"✅ 视频播放完成！播放时长: {elapsed_time}秒")
                 return True
             
+            # 检查广告（有的时候广告会在中间跳出来）
+            skip_ad_if_present(driver)
+
             # 打印进度（每10秒打印一次）
             if elapsed_time % 10 == 0 and elapsed_time > 0:
                 print(f"⏱️ 视频播放中... 已播放 {elapsed_time} 秒")
@@ -462,26 +463,10 @@ def open_channel_and_play_random_video():
         if video_info_list:
             while True:
                 success = select_random_video_with_duration(driver, video_info_list, CHANNEL_URL)
-            
-            if success:
-                print("\n" + "=" * 50)
-                print("✅ 随机视频已成功打开！")
-                if logged_in:
-                    print("🔐 已登录状态：可访问个人内容和获得个性化推荐")
-                else:
-                    print("🌐 访客模式：可正常观看视频")
-                
-                print("\n💡 使用提示:")
-                print("- 您可以在浏览器中正常使用所有YouTube功能")
-                print("- 如果登录了，状态将自动保存到下次使用")
-                print("- 观看完毕后，回到此窗口按Enter键关闭")
-                print("=" * 50)
-                print("⏸️ 按Enter键关闭浏览器...")
-                
-                input()
-            else:
-                print("❌ 无法播放随机视频")
-                input("按Enter键关闭浏览器...")
+                if not success:
+                    print("❌ 无法播放随机视频")
+                    input("按Enter键关闭浏览器...")
+                    break
         else:
             print("❌ 未能获取到频道视频列表")
             input("按Enter键关闭浏览器...")
@@ -506,82 +491,6 @@ def open_channel_and_play_random_video():
             driver.quit()
             print("🔒 浏览器已关闭")
 
-def open_default_video():
-    """使用浏览器打开默认视频"""
-    try:
-        print("🚀 正在启动Chrome浏览器...")
-        driver = create_driver()
-        print("✅ Chrome浏览器已启动完成！")
-        print("=" * 50)
-        
-        # 处理登录流程
-        logged_in = handle_login_flow(driver)
-        
-        print(f"\n🎥 正在打开YouTube视频...")
-        print(f"🔗 链接: {DEFAULT_VIDEO_URL}")
-        print("⏳ 请稍等，正在加载视频页面...")
-
-        driver.get(DEFAULT_VIDEO_URL)
-        
-        # 尝试点击播放按钮
-        try:
-            play_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, ".ytp-large-play-button"))
-            )
-            play_button.click()
-            print("▶️ 已自动点击播放按钮")
-        except:
-            print("ℹ️ 视频已自动播放或无需手动点击")
-        
-        print("\n" + "=" * 50)
-        print("✅ YouTube视频已成功打开！")
-        if logged_in:
-            print("🔐 已登录状态：可访问个人内容和获得个性化推荐")
-        else:
-            print("🌐 访客模式：可正常观看视频")
-        
-        print("\n💡 视频播放监控:")
-        print("- 程序将自动监控视频播放状态")
-        print("- 视频播放完毕后会自动关闭浏览器")
-        print("- 您也可以手动按Ctrl+C强制退出")
-        print("=" * 50)
-        print("🔍 正在监控视频播放状态...")
-        
-        # 持续监控当前URL
-        original_url = DEFAULT_VIDEO_URL
-        try:
-            while True:
-                time.sleep(5)
-                current_url = driver.current_url
-                
-                if original_url not in current_url:
-                    print(f"\n🎬 检测到页面跳转: {current_url}")
-                    print("✅ 视频播放完毕，正在自动关闭浏览器...")
-                    break
-        except KeyboardInterrupt:
-            print("\n⚠️ 用户手动中断，正在关闭浏览器...")
-        except Exception as e:
-            print(f"\n❌ 监控过程中发生错误: {e}")
-        
-    except Exception as e:
-        print(f"\n❌ 发生错误: {e}")
-        print("\n🔧 可能的解决方案:")
-        print("1. 检查网络连接是否正常")
-        print("2. 确保Chrome浏览器已正确安装")
-        print("3. 关闭其他Chrome窗口后重试")
-        print("4. 重启程序或重启计算机")
-        input("按Enter键退出...")
-        
-    finally:
-        if 'driver' in locals():
-            try:
-                if check_login_status(driver):
-                    save_cookies(driver)
-                    print("💾 登录状态已保存")
-            except:
-                pass
-            driver.quit()
-            print("🔒 浏览器已关闭")
 
 def clear_saved_data():
     """清除保存的cookies和用户数据"""
@@ -598,12 +507,6 @@ def clear_saved_data():
         print("🔄 所有保存的数据已清除")
     except Exception as e:
         print(f"❌ 清除数据时发生错误: {e}")
-
-def open_youtube_alternative():
-    """替代方案：使用默认浏览器打开YouTube"""
-    print(f"🌐 使用默认浏览器打开YouTube视频: {DEFAULT_VIDEO_URL}")
-    webbrowser.open(DEFAULT_VIDEO_URL)
-    print("✅ 视频已在默认浏览器中打开")
 
 def troubleshoot_login_issues():
     """登录问题故障排除指南"""
@@ -654,24 +557,18 @@ if __name__ == "__main__":
     print("=" * 50)
     print("选择功能:")
     print("1. 📺 访问指定频道并随机播放视频")
-    print("2. 🎥 播放默认视频 (带监控)")
-    print("3. 🌐 使用默认浏览器（简单快速）")
-    print("4. 🗑️ 清除保存的登录数据")
-    print("5. 🛠️ 登录问题故障排除指南")
+    print("2. 🗑️ 清除保存的登录数据")
+    print("3. 🛠️ 登录问题故障排除指南")
     print("=" * 50)
     
-    choice = input("请输入选择 (1-5): ").strip()
+    choice = input("请输入选择 (1-3): ").strip()
     
     if choice == "1":
         open_channel_and_play_random_video()
     elif choice == "2":
-        open_default_video()
-    elif choice == "3":
-        open_youtube_alternative()
-    elif choice == "4":
         clear_saved_data()
-    elif choice == "5":
+    elif choice == "3":
         troubleshoot_login_issues()
     else:
-        print("❌ 无效选择，请输入 1-5 之间的数字")
+        print("❌ 无效选择，请输入 1-3 之间的数字")
         input("按Enter键退出...")
