@@ -11,6 +11,18 @@ import os
 import shutil
 import webbrowser
 import random
+import logging
+
+# 配置logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('youtube_player.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # 配置常量
 COOKIE_FILE = "youtube_cookies.json"
@@ -22,17 +34,17 @@ def save_cookies(driver):
         cookies = driver.get_cookies()
         with open(COOKIE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cookies, f, indent=2)
-        print(f"✅ Cookies已保存到 {COOKIE_FILE}")
+        logger.info(f"✅ Cookies已保存到 {COOKIE_FILE}")
         return True
     except Exception as e:
-        print(f"❌ 保存cookies失败: {e}")
+        logger.error(f"❌ 保存cookies失败: {e}")
         return False
 
 def load_cookies(driver):
     """从文件加载cookies到浏览器"""
     try:
         if not os.path.exists(COOKIE_FILE):
-            print("📝 未找到已保存的cookies文件")
+            logger.info("📝 未找到已保存的cookies文件")
             return False
         
         with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
@@ -45,12 +57,12 @@ def load_cookies(driver):
             try:
                 driver.add_cookie(cookie)
             except Exception as e:
-                print(f"⚠️ 添加cookie失败: {e}")
+                logger.warning(f"⚠️ 添加cookie失败: {e}")
         
-        print("✅ Cookies已加载")
+        logger.info("✅ Cookies已加载")
         return True
     except Exception as e:
-        print(f"❌ 加载cookies失败: {e}")
+        logger.error(f"❌ 加载cookies失败: {e}")
         return False
 
 def check_login_status(driver):
@@ -61,29 +73,29 @@ def check_login_status(driver):
         
         try:
             wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#avatar-btn")))
-            print("✅ 检测到已登录状态")
+            logger.info("✅ 检测到已登录状态")
             return True
         except:
             try:
                 driver.find_element(By.XPATH, "//a[contains(@aria-label, 'Sign in')]")
-                print("❌ 未登录状态")
+                logger.info("❌ 未登录状态")
                 return False
             except:
-                print("⚠️ 无法确定登录状态")
+                logger.warning("⚠️ 无法确定登录状态")
                 return False
     except Exception as e:
-        print(f"❌ 检查登录状态失败: {e}")
+        logger.error(f"❌ 检查登录状态失败: {e}")
         return False
 
 def get_channel_videos(driver, channel_url):
     """获取频道页面的视频列表"""
     try:
-        print(f"🔍 正在访问频道主页: {channel_url}")
+        logger.info(f"🔍 正在访问频道主页: {channel_url}")
         driver.get(channel_url)
         time.sleep(5)
         
         # 滚动页面加载更多视频
-        print("📜 正在滚动页面加载视频...")
+        logger.info("📜 正在滚动页面加载视频...")
         for i in range(3):
             driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
             time.sleep(2)
@@ -92,7 +104,7 @@ def get_channel_videos(driver, channel_url):
         video_containers = driver.find_elements(By.CSS_SELECTOR, "#contents ytd-rich-item-renderer")
         
         if not video_containers:
-            print("❌ 未找到任何视频")
+            logger.error("❌ 未找到任何视频")
             return []
         
         video_info_list = []
@@ -112,11 +124,11 @@ def get_channel_videos(driver, channel_url):
             except Exception as e:
                 continue
         
-        print(f"✅ 找到 {len(video_info_list)} 个视频")
+        logger.info(f"✅ 找到 {len(video_info_list)} 个视频")
         return video_info_list
         
     except Exception as e:
-        print(f"❌ 获取频道视频失败: {e}")
+        logger.error(f"❌ 获取频道视频失败: {e}")
         return []
 
 def skip_ad_if_present(driver):
@@ -124,10 +136,10 @@ def skip_ad_if_present(driver):
     try:
         skip_button = driver.find_element(By.CSS_SELECTOR, ".ytp-skip-ad-button")
         if skip_button.is_displayed() and skip_button.is_enabled():
-            print("📺 发现广告，正在跳过...")
+            logger.info("📺 发现广告，正在跳过...")
             skip_button.click()
             time.sleep(2)
-            print("✅ 广告已跳过")
+            logger.info("✅ 广告已跳过")
             return True
     except:
         pass
@@ -136,13 +148,13 @@ def skip_ad_if_present(driver):
 def navigate_back_to_channel(driver, channel_url):
     """导航回到频道页面"""
     try:
-        print("🔙 正在返回频道页面...")
+        logger.info("🔙 正在返回频道页面...")
         driver.back()
         time.sleep(3)
         
         current_url = driver.current_url
         if "@AltonFrederickpreaching" in current_url and "videos" in current_url:
-            print("✅ 已返回频道页面")
+            logger.info("✅ 已返回频道页面")
             return True
         
         # 再试一次后退
@@ -151,23 +163,23 @@ def navigate_back_to_channel(driver, channel_url):
         
         current_url = driver.current_url
         if "@AltonFrederickpreaching" in current_url and "videos" in current_url:
-            print("✅ 已返回频道页面")
+            logger.info("✅ 已返回频道页面")
             return True
         
         # 直接导航到频道页面
         driver.get(channel_url)
         time.sleep(3)
-        print("✅ 已返回频道页面")
+        logger.info("✅ 已返回频道页面")
         return True
         
     except Exception as e:
-        print(f"❌ 返回频道页面失败: {e}")
+        logger.error(f"❌ 返回频道页面失败: {e}")
         return False
 
 def wait_for_video_duration(driver, video_url, max_wait_time=None):
     """等待视频播放完成，通过监控URL变化来判断"""
     try:
-        print(f"🎬 开始监控视频播放: {video_url}")
+        logger.info(f"🎬 开始监控视频播放: {video_url}")
         start_time = time.time()
         
         while True:
@@ -177,7 +189,7 @@ def wait_for_video_duration(driver, video_url, max_wait_time=None):
             
             # 检查当前URL是否还包含原视频的标识
             if video_url not in current_url:
-                print(f"✅ 视频播放完成！播放时长: {elapsed_time}秒")
+                logger.info(f"✅ 视频播放完成！播放时长: {elapsed_time}秒")
                 return True
             
             # 检查广告（有的时候广告会在中间跳出来）
@@ -185,43 +197,43 @@ def wait_for_video_duration(driver, video_url, max_wait_time=None):
 
             # 打印进度（每10秒打印一次）
             if elapsed_time % 10 == 0 and elapsed_time > 0:
-                print(f"⏱️ 视频播放中... 已播放 {elapsed_time} 秒")
+                logger.info(f"⏱️ 视频播放中... 已播放 {elapsed_time} 秒")
             
             # 如果设置了最大等待时间
             if max_wait_time and elapsed_time >= max_wait_time:
-                print(f"⏰ 达到最大等待时间 {max_wait_time} 秒，停止监控")
+                logger.warning(f"⏰ 达到最大等待时间 {max_wait_time} 秒，停止监控")
                 return False
                 
     except KeyboardInterrupt:
-        print("\n⚠️ 用户手动中断视频监控")
+        logger.warning("⚠️ 用户手动中断视频监控")
         return False
     except Exception as e:
-        print(f"❌ 监控视频播放时发生错误: {e}")
+        logger.error(f"❌ 监控视频播放时发生错误: {e}")
         return False
 
 def select_random_video_with_duration(driver, video_info_list, channel_url):
     """随机选择一个视频并点击播放，支持时长处理和自动回退"""
     try:
         if not video_info_list:
-            print("❌ 没有可选择的视频")
+            logger.error("❌ 没有可选择的视频")
             return False
         
         selected_video_info = random.choice(video_info_list)
         selected_video = selected_video_info['thumbnail']
         video_link = selected_video_info['link']
         
-        print(f"🎲 随机选择视频 (共{len(video_info_list)}个视频可选)")
+        logger.info(f"🎲 随机选择视频 (共{len(video_info_list)}个视频可选)")
         
         # 滚动到选中的视频位置
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", selected_video)
         time.sleep(2)
         
         try:
-            print("🖱️ 正在点击选中的视频...")
+            logger.info("🖱️ 正在点击选中的视频...")
             
             # 获取视频链接地址
             video_url = video_link.get_attribute('href')
-            print(f"🔗 视频链接: {video_url}")
+            logger.info(f"🔗 视频链接: {video_url}")
             
             video_link.click()
             time.sleep(5)
@@ -235,28 +247,28 @@ def select_random_video_with_duration(driver, video_info_list, channel_url):
                     EC.element_to_be_clickable((By.CSS_SELECTOR, ".ytp-large-play-button"))
                 )
                 play_button.click()
-                print("▶️ 已自动点击播放按钮")
+                logger.info("▶️ 已自动点击播放按钮")
             except:
-                print("ℹ️ 视频已自动播放或无需手动点击")
+                logger.info("ℹ️ 视频已自动播放或无需手动点击")
             
             # 再次检查广告
             time.sleep(3)
             skip_ad_if_present(driver)
             
-            print("✅ 视频播放成功！")
+            logger.info("✅ 视频播放成功！")
             
             # 等待视频播放完成
-            print("🕒 开始监控视频播放状态...")
+            logger.info("🕒 开始监控视频播放状态...")
             if wait_for_video_duration(driver, video_url):
                 return navigate_back_to_channel(driver, channel_url)
             else:
-                print("⚠️ 视频监控结束")
+                logger.warning("⚠️ 视频监控结束")
                 return True
             
         except Exception as click_error:
-            print(f"❌ 点击视频失败: {click_error}")
+            logger.error(f"❌ 点击视频失败: {click_error}")
             try:
-                print("🔄 尝试备用点击方案...")
+                logger.info("🔄 尝试备用点击方案...")
                 
                 # 获取视频链接地址（备用方案）
                 video_url = video_link.get_attribute('href')
@@ -265,17 +277,17 @@ def select_random_video_with_duration(driver, video_info_list, channel_url):
                 time.sleep(5)
                 skip_ad_if_present(driver)
                 
-                print("🕒 开始监控视频播放状态...")
+                logger.info("🕒 开始监控视频播放状态...")
                 if wait_for_video_duration(driver, video_url):
                     navigate_back_to_channel(driver, channel_url)
                 
                 return True
             except:
-                print("❌ 备用点击方案也失败")
+                logger.error("❌ 备用点击方案也失败")
                 return False
         
     except Exception as e:
-        print(f"❌ 选择视频失败: {e}")
+        logger.error(f"❌ 选择视频失败: {e}")
         return False
 
 def setup_chrome_options():
@@ -381,20 +393,20 @@ def handle_login_flow(driver):
     logged_in = False
     
     if has_saved_cookies:
-        print("📂 发现已保存的登录信息")
+        logger.info("📂 发现已保存的登录信息")
         use_saved_login = input("🔑 是否使用已保存的登录状态? (y/n): ").lower().strip()
         
         if use_saved_login == 'y':
-            print("📂 正在加载已保存的cookies...")
+            logger.info("📂 正在加载已保存的cookies...")
             if load_cookies(driver):
-                print("🔄 正在验证登录状态...")
+                logger.info("🔄 正在验证登录状态...")
                 driver.refresh()
                 time.sleep(3)
                 logged_in = check_login_status(driver)
                 if logged_in:
-                    print("🎉 登录状态验证成功！")
+                    logger.info("🎉 登录状态验证成功！")
                 else:
-                    print("⚠️ 已保存的登录状态已过期")
+                    logger.warning("⚠️ 已保存的登录状态已过期")
     
     if not logged_in:
         print("选择登录方式:")
@@ -405,13 +417,13 @@ def handle_login_flow(driver):
         if login_choice == '1':
             logged_in = youtube_login(driver)
         else:
-            print("🌐 将以访客模式打开视频")
+            logger.info("🌐 将以访客模式打开视频")
     
     return logged_in
 
 def youtube_login(driver):
     """引导用户登录YouTube"""
-    print("\n🔐 开始YouTube登录流程...")
+    logger.info("🔐 开始YouTube登录流程...")
     print("📺 正在打开YouTube，请按以下步骤登录:")
     print("1. 等待页面加载完成")
     print("2. 点击右上角的'登录'按钮")
@@ -425,37 +437,37 @@ def youtube_login(driver):
     # 尝试自动点击登录按钮
     try:
         sign_in_btn = driver.find_element(By.XPATH, "//a[contains(@aria-label, 'Sign in')]")
-        print("🖱️ 找到登录按钮，正在自动点击...")
+        logger.info("🖱️ 找到登录按钮，正在自动点击...")
         sign_in_btn.click()
         time.sleep(2)
     except:
-        print("⚠️ 未找到登录按钮，请手动点击右上角的登录按钮")
+        logger.warning("⚠️ 未找到登录按钮，请手动点击右上角的登录按钮")
     
     # 等待用户完成登录
     input("\n✋ 请在浏览器中完成登录，然后按Enter键继续...")
     
     # 验证登录状态
     if check_login_status(driver):
-        print("🎉 登录成功！")
+        logger.info("🎉 登录成功！")
         save_cookies(driver)
         return True
     else:
-        print("❌ 登录验证失败")
+        logger.error("❌ 登录验证失败")
         return False
 
 def open_channel_and_play_random_video():
     """打开指定频道并随机播放一个视频"""
     try:
-        print("🚀 正在启动Chrome浏览器...")
+        logger.info("🚀 正在启动Chrome浏览器...")
         driver = create_driver()
-        print("✅ Chrome浏览器已启动完成！")
+        logger.info("✅ Chrome浏览器已启动完成！")
         print("=" * 50)
         
         # 处理登录流程
         logged_in = handle_login_flow(driver)
         
-        print(f"\n🎬 正在访问频道主页...")
-        print(f"🔗 频道: {CHANNEL_URL}")
+        logger.info(f"🎬 正在访问频道主页...")
+        logger.info(f"🔗 频道: {CHANNEL_URL}")
         
         # 获取频道视频列表
         video_info_list = get_channel_videos(driver, CHANNEL_URL)
@@ -464,15 +476,15 @@ def open_channel_and_play_random_video():
             while True:
                 success = select_random_video_with_duration(driver, video_info_list, CHANNEL_URL)
                 if not success:
-                    print("❌ 无法播放随机视频")
+                    logger.error("❌ 无法播放随机视频")
                     input("按Enter键关闭浏览器...")
                     break
         else:
-            print("❌ 未能获取到频道视频列表")
+            logger.error("❌ 未能获取到频道视频列表")
             input("按Enter键关闭浏览器...")
         
     except Exception as e:
-        print(f"\n❌ 发生错误: {e}")
+        logger.error(f"❌ 发生错误: {e}")
         print("\n🔧 可能的解决方案:")
         print("1. 检查网络连接是否正常")
         print("2. 确保Chrome浏览器已正确安装")
@@ -485,11 +497,11 @@ def open_channel_and_play_random_video():
             try:
                 if check_login_status(driver):
                     save_cookies(driver)
-                    print("💾 登录状态已保存")
+                    logger.info("💾 登录状态已保存")
             except:
                 pass
             driver.quit()
-            print("🔒 浏览器已关闭")
+            logger.info("🔒 浏览器已关闭")
 
 
 def clear_saved_data():
@@ -497,16 +509,16 @@ def clear_saved_data():
     try:
         if os.path.exists(COOKIE_FILE):
             os.remove(COOKIE_FILE)
-            print("✅ 已清除保存的cookies")
+            logger.info("✅ 已清除保存的cookies")
         
         user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
         if os.path.exists(user_data_dir):
             shutil.rmtree(user_data_dir)
-            print("✅ 已清除Chrome用户数据")
+            logger.info("✅ 已清除Chrome用户数据")
         
-        print("🔄 所有保存的数据已清除")
+        logger.info("🔄 所有保存的数据已清除")
     except Exception as e:
-        print(f"❌ 清除数据时发生错误: {e}")
+        logger.error(f"❌ 清除数据时发生错误: {e}")
 
 def troubleshoot_login_issues():
     """登录问题故障排除指南"""
@@ -551,8 +563,10 @@ def troubleshoot_login_issues():
     
     print("\n" + "=" * 60)
     input("📖 阅读完成后按Enter键返回主菜单...")
+    logger.info("用户查看了登录问题故障排除指南")
 
 if __name__ == "__main__":
+    logger.info("程序启动")
     print("🎬 YouTube视频播放器 v2.3 - 简化版")
     print("=" * 50)
     print("选择功能:")
@@ -562,6 +576,7 @@ if __name__ == "__main__":
     print("=" * 50)
     
     choice = input("请输入选择 (1-3): ").strip()
+    logger.info(f"用户选择了选项: {choice}")
     
     if choice == "1":
         open_channel_and_play_random_video()
@@ -570,5 +585,8 @@ if __name__ == "__main__":
     elif choice == "3":
         troubleshoot_login_issues()
     else:
+        logger.warning(f"用户输入了无效选择: {choice}")
         print("❌ 无效选择，请输入 1-3 之间的数字")
         input("按Enter键退出...")
+    
+    logger.info("程序结束")

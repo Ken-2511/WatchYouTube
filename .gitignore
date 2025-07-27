@@ -3,3 +3,4 @@ youtube_cookies.json
 build/
 dist/
 __pycache__/
+youtube_player.log
