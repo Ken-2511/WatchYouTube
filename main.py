@@ -76,23 +76,8 @@ def check_login_status(driver):
         print(f"❌ 检查登录状态失败: {e}")
         return False
 
-def parse_duration_to_seconds(duration_text):
-    """将时长文本转换为秒数"""
-    try:
-        parts = duration_text.split(":")
-        if len(parts) == 2:  # MM:SS
-            minutes, seconds = map(int, parts)
-            return minutes * 60 + seconds
-        elif len(parts) == 3:  # HH:MM:SS
-            hours, minutes, seconds = map(int, parts)
-            return hours * 3600 + minutes * 60 + seconds
-        else:
-            return 0
-    except:
-        return 0
-
-def get_channel_videos_with_duration(driver, channel_url):
-    """获取频道页面的视频列表和时长信息"""
+def get_channel_videos(driver, channel_url):
+    """获取频道页面的视频列表"""
     try:
         print(f"🔍 正在访问频道主页: {channel_url}")
         driver.get(channel_url)
@@ -119,20 +104,9 @@ def get_channel_videos_with_duration(driver, channel_url):
                 # 获取视频链接
                 video_link = container.find_element(By.CSS_SELECTOR, "a#thumbnail")
                 
-                # 获取视频时长
-                try:
-                    duration_element = container.find_element(By.CSS_SELECTOR, "#overlays .ytd-thumbnail-overlay-time-status-renderer")
-                    duration_text = duration_element.text.strip()
-                    duration_seconds = parse_duration_to_seconds(duration_text)
-                except:
-                    duration_text = "未知"
-                    duration_seconds = 0
-                
                 video_info = {
                     'thumbnail': thumbnail,
                     'link': video_link,
-                    'duration_text': duration_text,
-                    'duration_seconds': duration_seconds
                 }
                 video_info_list.append(video_info)
                 
@@ -160,27 +134,6 @@ def skip_ad_if_present(driver):
     except:
         pass
     return False
-
-def wait_for_video_duration(driver, expected_duration_seconds, tolerance=10):
-    """等待视频播放完成或接近完成"""
-    print(f"⏱️ 视频时长: {expected_duration_seconds // 60}分{expected_duration_seconds % 60}秒")
-    print("🎬 开始播放，将在视频快结束时自动返回...")
-    
-    wait_time = max(expected_duration_seconds - tolerance, 10)
-    start_time = time.time()
-    
-    while time.time() - start_time < wait_time:
-        try:
-            if int(time.time() - start_time) % 30 == 0:
-                remaining = wait_time - int(time.time() - start_time)
-                print(f"⏳ 还需等待约 {remaining // 60}分{remaining % 60}秒...")
-            time.sleep(5)
-        except KeyboardInterrupt:
-            print("\n⏹️ 用户中断播放")
-            return False
-    
-    print("✅ 视频接近结束，准备返回频道页面")
-    return True
 
 def navigate_back_to_channel(driver, channel_url):
     """导航回到频道页面"""
@@ -213,6 +166,38 @@ def navigate_back_to_channel(driver, channel_url):
         print(f"❌ 返回频道页面失败: {e}")
         return False
 
+def wait_for_video_duration(driver, video_url, max_wait_time=None):
+    """等待视频播放完成，通过监控URL变化来判断"""
+    try:
+        print(f"🎬 开始监控视频播放: {video_url}")
+        start_time = time.time()
+        
+        while True:
+            time.sleep(1)  # 每隔1秒检查一次
+            current_url = driver.current_url
+            elapsed_time = int(time.time() - start_time)
+            
+            # 检查当前URL是否还包含原视频的标识
+            if video_url not in current_url:
+                print(f"✅ 视频播放完成！播放时长: {elapsed_time}秒")
+                return True
+            
+            # 打印进度（每10秒打印一次）
+            if elapsed_time % 10 == 0 and elapsed_time > 0:
+                print(f"⏱️ 视频播放中... 已播放 {elapsed_time} 秒")
+            
+            # 如果设置了最大等待时间
+            if max_wait_time and elapsed_time >= max_wait_time:
+                print(f"⏰ 达到最大等待时间 {max_wait_time} 秒，停止监控")
+                return False
+                
+    except KeyboardInterrupt:
+        print("\n⚠️ 用户手动中断视频监控")
+        return False
+    except Exception as e:
+        print(f"❌ 监控视频播放时发生错误: {e}")
+        return False
+
 def select_random_video_with_duration(driver, video_info_list, channel_url):
     """随机选择一个视频并点击播放，支持时长处理和自动回退"""
     try:
@@ -223,11 +208,8 @@ def select_random_video_with_duration(driver, video_info_list, channel_url):
         selected_video_info = random.choice(video_info_list)
         selected_video = selected_video_info['thumbnail']
         video_link = selected_video_info['link']
-        duration_text = selected_video_info['duration_text']
-        duration_seconds = selected_video_info['duration_seconds']
         
         print(f"🎲 随机选择视频 (共{len(video_info_list)}个视频可选)")
-        print(f"⏱️ 选中视频时长: {duration_text}")
         
         # 滚动到选中的视频位置
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", selected_video)
@@ -235,6 +217,11 @@ def select_random_video_with_duration(driver, video_info_list, channel_url):
         
         try:
             print("🖱️ 正在点击选中的视频...")
+            
+            # 获取视频链接地址
+            video_url = video_link.get_attribute('href')
+            print(f"🔗 视频链接: {video_url}")
+            
             video_link.click()
             time.sleep(5)
             
@@ -258,23 +245,27 @@ def select_random_video_with_duration(driver, video_info_list, channel_url):
             print("✅ 视频播放成功！")
             
             # 等待视频播放完成
-            if duration_seconds > 0:
-                wait_for_video_duration(driver, duration_seconds, tolerance=10)
+            print("🕒 开始监控视频播放状态...")
+            if wait_for_video_duration(driver, video_url):
                 return navigate_back_to_channel(driver, channel_url)
             else:
-                print("⚠️ 无法获取视频时长，将继续播放...")
+                print("⚠️ 视频监控结束")
                 return True
             
         except Exception as click_error:
             print(f"❌ 点击视频失败: {click_error}")
             try:
                 print("🔄 尝试备用点击方案...")
+                
+                # 获取视频链接地址（备用方案）
+                video_url = video_link.get_attribute('href')
+                
                 selected_video.click()
                 time.sleep(5)
                 skip_ad_if_present(driver)
                 
-                if duration_seconds > 0:
-                    wait_for_video_duration(driver, duration_seconds, tolerance=10)
+                print("🕒 开始监控视频播放状态...")
+                if wait_for_video_duration(driver, video_url):
                     navigate_back_to_channel(driver, channel_url)
                 
                 return True
@@ -466,10 +457,11 @@ def open_channel_and_play_random_video():
         print(f"🔗 频道: {CHANNEL_URL}")
         
         # 获取频道视频列表
-        video_info_list = get_channel_videos_with_duration(driver, CHANNEL_URL)
+        video_info_list = get_channel_videos(driver, CHANNEL_URL)
         
         if video_info_list:
-            success = select_random_video_with_duration(driver, video_info_list, CHANNEL_URL)
+            while True:
+                success = select_random_video_with_duration(driver, video_info_list, CHANNEL_URL)
             
             if success:
                 print("\n" + "=" * 50)
