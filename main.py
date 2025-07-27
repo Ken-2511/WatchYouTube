@@ -258,49 +258,63 @@ def open_youtube_with_login():
         print(f"\n🎥 正在打开YouTube视频...")
         print(f"🔗 链接: {DEFAULT_VIDEO_URL}")
         print("⏳ 请稍等，正在加载视频页面...")
-        
-        driver.get(DEFAULT_VIDEO_URL)
-        
-        # 尝试点击播放按钮
-        try:
-            play_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, ".ytp-large-play-button"))
-            )
-            play_button.click()
-            print("▶️ 已自动点击播放按钮")
-        except:
-            print("ℹ️ 视频已自动播放或无需手动点击")
-        
-        print("\n" + "=" * 50)
-        print("✅ YouTube视频已成功打开！")
-        if logged_in:
-            print("🔐 已登录状态：可访问个人内容和获得个性化推荐")
+
+        driver.get("https://www.youtube.com/@AltonFrederickpreaching/videos")
+
+        time.sleep(5)  # 等待页面加载
+
+        results = find_thumbnail_images(driver)
+        if results:
+            print(f"✅ 找到 {len(results)} 个缩略图元素")
+            for i, img in enumerate(results, 1):
+                src = img.get_attribute("src")
+                alt = img.get_attribute("alt") or "无描述"
+                print(f"   {i}. 缩略图: {alt[:50]}... (链接: {src})")
         else:
-            print("🌐 访客模式：可正常观看视频")
+            print("❌ 未找到任何缩略图元素")
         
-        print("\n💡 视频播放监控:")
-        print("- 程序将自动监控视频播放状态")
-        print("- 视频播放完毕后会自动关闭浏览器")
-        print("- 您也可以手动按Ctrl+C强制退出")
-        print("=" * 50)
-        print("🔍 正在监控视频播放状态...")
+    #     driver.get(DEFAULT_VIDEO_URL)
         
-        # 持续监控当前URL
-        original_url = DEFAULT_VIDEO_URL
-        try:
-            while True:
-                time.sleep(5)  # 每5秒检查一次
-                current_url = driver.current_url
+    #     # 尝试点击播放按钮
+    #     try:
+    #         play_button = WebDriverWait(driver, 10).until(
+    #             EC.element_to_be_clickable((By.CSS_SELECTOR, ".ytp-large-play-button"))
+    #         )
+    #         play_button.click()
+    #         print("▶️ 已自动点击播放按钮")
+    #     except:
+    #         print("ℹ️ 视频已自动播放或无需手动点击")
+        
+    #     print("\n" + "=" * 50)
+    #     print("✅ YouTube视频已成功打开！")
+    #     if logged_in:
+    #         print("🔐 已登录状态：可访问个人内容和获得个性化推荐")
+    #     else:
+    #         print("🌐 访客模式：可正常观看视频")
+        
+    #     print("\n💡 视频播放监控:")
+    #     print("- 程序将自动监控视频播放状态")
+    #     print("- 视频播放完毕后会自动关闭浏览器")
+    #     print("- 您也可以手动按Ctrl+C强制退出")
+    #     print("=" * 50)
+    #     print("🔍 正在监控视频播放状态...")
+        
+    #     # 持续监控当前URL
+    #     original_url = DEFAULT_VIDEO_URL
+    #     try:
+    #         while True:
+    #             time.sleep(5)  # 每5秒检查一次
+    #             current_url = driver.current_url
                 
-                # 检查是否还在原视频页面
-                if original_url not in current_url:
-                    print(f"\n🎬 检测到页面跳转: {current_url}")
-                    print("✅ 视频播放完毕，正在自动关闭浏览器...")
-                    break
-        except KeyboardInterrupt:
-            print("\n⚠️ 用户手动中断，正在关闭浏览器...")
-        except Exception as e:
-            print(f"\n❌ 监控过程中发生错误: {e}")
+    #             # 检查是否还在原视频页面
+    #             if original_url not in current_url:
+    #                 print(f"\n🎬 检测到页面跳转: {current_url}")
+    #                 print("✅ 视频播放完毕，正在自动关闭浏览器...")
+    #                 break
+    #     except KeyboardInterrupt:
+    #         print("\n⚠️ 用户手动中断，正在关闭浏览器...")
+    #     except Exception as e:
+    #         print(f"\n❌ 监控过程中发生错误: {e}")
         
     except Exception as e:
         print(f"\n❌ 发生错误: {e}")
@@ -396,6 +410,43 @@ def troubleshoot_login_issues():
     
     print("\n" + "=" * 60)
     input("📖 阅读完成后按Enter键返回主菜单...")
+
+def find_thumbnail_images(driver):
+    """
+    查找页面中所有符合要求的缩略图链接元素 (a#thumbnail)
+    
+    Args:
+        driver: Selenium WebDriver实例
+        
+    Returns:
+        list: 找到的所有链接元素列表
+    """
+    try:
+        # 使用CSS选择器查找所有符合条件的缩略图链接
+        thumbnail_elements = driver.find_elements(By.CSS_SELECTOR, "a#thumbnail")
+        
+        print(f"🖼️ 找到 {len(thumbnail_elements)} 个缩略图链接元素")
+        
+        # 可选：打印每个元素的基本信息
+        for i, element in enumerate(thumbnail_elements, 1):
+            try:
+                href = element.get_attribute("href")
+                # 尝试获取内部img的alt属性作为视频标题
+                img_element = element.find_element(By.CSS_SELECTOR, "yt-image img")
+                alt = img_element.get_attribute("alt")
+                src = img_element.get_attribute("src")
+                
+                title = alt if alt else "无标题"
+                print(f"   {i}. 视频: {title[:50]}... (链接: {href})")
+            except Exception as e:
+                href = element.get_attribute("href") or "无链接"
+                print(f"   {i}. 缩略图: 无法获取详细信息 - {href} ({e})")
+        
+        return thumbnail_elements
+        
+    except Exception as e:
+        print(f"❌ 查找缩略图元素时发生错误: {e}")
+        return []
 
 if __name__ == "__main__":
     print("🎬 YouTube视频播放器 v2.1 - 增强版")
